@@ -1,0 +1,23 @@
+{
+  "name": "voter-api",
+  "version": "0.0.1",
+  "description": "Express based API Server with high availability APIs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/theflazer/voter-api.git"
+  },
+  "author": "Varun Vasudevan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/theflazer/voter-api/issues"
+  },
+  "homepage": "https://github.com/theflazer/voter-api#readme",
+  "dependencies": {
+    "express": "^4.16.2",
+    "lodash": "^4.17.4"
+  }
+}
