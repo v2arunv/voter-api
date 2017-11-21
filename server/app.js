@@ -5,8 +5,10 @@ const app = express();
 const http = require('http');
 const cassandra = require('cassandra-driver');
 const redis = require('redis')
+const bodyParser = require('body-parser');
 const config = require('./config');
 const seed = require('./services/seed');
+
 Promise.promisifyAll(redis.RedisClient.prototype);
 Promise.promisifyAll(redis.Multi.prototype);
 
@@ -15,7 +17,9 @@ const redisClient = redis.createClient({
   host: config.REDIS_HOST,
   port: config.REDIS_PORT,
 }); 
-const voteAPI = require('./api/vote/controller')(app, cdb, redisClient);
+const voteAPI = require('./api/vote/controller')(cdb, redisClient);
+app.use(bodyParser.urlencoded());
+app.use('/', voteAPI);
 
 let portCounter = 0;
 const tryAnotherPort = () => {
@@ -32,9 +36,16 @@ const tryAnotherPort = () => {
 
 cdb.connect((err) => {
   if (err == null) {
-    tryAnotherPort();
     if (config.ENABLE_SEED) {
-      seed(cdb, redisClient);
+      return seed(cdb, redisClient)
+      .then(() => {
+        return tryAnotherPort();
+      })
+      .catch((err) => {
+        console.log(err);
+      });
     }
+    return tryAnotherPort();
   }
-})
+  console.log(err);
+});
