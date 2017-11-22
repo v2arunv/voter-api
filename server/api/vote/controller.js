@@ -1,4 +1,3 @@
-const model = require('./model');
 const express = require('express');
 const router = express.Router();
 const _ = require('lodash');
@@ -36,18 +35,17 @@ module.exports = (cdb, redis) => {
     const score = parseInt(req.body.score, 10);
     const userId = req.body.userId;
     const postId = req.body.postId;
+    console.log(`VOTE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
     let topHundredLength;
     if (score !== 1 && score !== -1) {
       return res.status(422).send('Invalid Score');
     }
     return redis.llen('topHundred').execAsync()
     .then((len) => {
-      topHundredLength = len;
+      topHundredLength = len[0];
       return redis.get(postId).execAsync();
     })
     .then((getResult) => {
-      console.log('Length of list = ',topHundredLength);
-      console.log('Current Score = ', getResult[0]);
       const currentScore = getResult[0] == null ? '0,0' : getResult[0];
       const newScore = generateNewScore(currentScore, score);
       // update upvote/downvote of a given post - might need LRU for this
@@ -55,6 +53,12 @@ module.exports = (cdb, redis) => {
     })
     .then(() => {
       // update recent 100 transactions
+      if (topHundredLength === 100) {
+        return redis.rpop('topHundred').execAsync().then((val) => {
+          console.log(`POPPING ${val} FROM LIST`);
+          return redis.lpush('topHundred', `${postId},${score}`).execAsync();
+        });
+      }
       return redis.lpush('topHundred', `${postId},${score}`).execAsync();
     })
     .then(() => {
@@ -68,12 +72,13 @@ module.exports = (cdb, redis) => {
       });
     })
     .then((dbResult) => {
-      console.log(`Updated ${postId} with score of ${score} by ${userId}`);
+      console.log(`DB UPDATE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
     });
   });
   
   router.get('/vote-counts', (req, res, next) => {
     const postId = _.get(req, 'query.postId', null);
+    console.log(`VOTE COUNTS: [postId: ${postId}]`);
       // try to get vote counts from Redis
     return redis.get(postId).execAsync()
     .then((val) => {
@@ -103,6 +108,7 @@ module.exports = (cdb, redis) => {
   });
   
   router.get('/vote-status', (req, res, next) => {
+    console.log(`VOTE STATUS`);
     return redis.lrange('topHundred', 0, 100).execAsync()
     .then((range) => {
       // All redis results wrap the result in an array
