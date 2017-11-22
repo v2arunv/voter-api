@@ -17,7 +17,7 @@ const redisClient = redis.createClient({
   host: config.REDIS_HOST,
   port: config.REDIS_PORT,
 }); 
-const voteAPI = require('./api/vote/controller')(cdb, redisClient);
+const voteAPI = require('./api/vote/controller')(cdb, redisClient.multi());
 app.use(bodyParser.urlencoded());
 app.use('/', voteAPI);
 

@@ -1,6 +1,7 @@
 const model = require('./model');
 const express = require('express');
 const router = express.Router();
+const _ = require('lodash');
 const Promise = require('bluebird');
 let requestCounter = 1;
 
@@ -18,25 +19,29 @@ module.exports = (cdb, redis) => {
     const score = parseInt(req.body.score, 10);
     const userId = req.body.userId;
     const postId = req.body.postId;
+    let topHundredLength;
     if (score !== 1 && score !== -1) {
       return res.status(422).send('Invalid Score');
     }
-
-    return Promise.all([
-      redis.llen('topHundred'),
-      redis.getAsync(postId)
-    ])
-    .spread((listLength, res) => {
-      const currentScore = res == null ? 0 : res;
+    return redis.llen('topHundred').execAsync()
+    .then((len) => {
+      topHundredLength = len;
+      return redis.get(postId).execAsync();
+    })
+    .then((getResult) => {
+      console.log('Length of list = ',topHundredLength);
+      console.log('Current Score = ', getResult[0]);
+      const currentScore = getResult[0] == null ? 0 : getResult[0];
       const newScore = currentScore + score;
       const promises = [];
       // update upvote/downvote of a given post - might need LRU for this
-      promises.push(redis.setAsync(postId, newScore));
-      // update recent 100 transactions
-      promises.push(redis.lpush('topHundred', `${postId}, ${score}`));
-      return Promise.all(promises);
+      return redis.set(postId, newScore).execAsync();
     })
-    .spread(() => {
+    .then(() => {
+      // update recent 100 transactions
+      return redis.lpush('topHundred', `${postId},${score}`).execAsync();
+    })
+    .then(() => {
       res.status(200).send({
         status: 'success',
       });
@@ -68,19 +73,17 @@ module.exports = (cdb, redis) => {
   });
   
   router.get('/vote-status', (req, res, next) => {
-    return res.status(200).send([
-      {
-        postId: 123,
-        score: 1,
-      },{
-        postId: 234,
-        score: -1,
-      }, {
-        postId: 456,
-        score: 1,
-      }
-    ]);
-  })
-  
+    return redis.lrange('topHundred', 0, 100).execAsync()
+    .then((range) => {
+      // All redis results wrap the result in an array
+      return res.status(200).send(_.map(range[0], (el) => {
+        return {
+          postId: el.substring(0, el.indexOf(',')),
+          score: el.substring(el.indexOf(',') + 1, el.length),
+        };
+      }));
+    });
+  });
+
   return router;
 };
