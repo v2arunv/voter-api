@@ -46,11 +46,13 @@ module.exports = (cdb, redis) => {
       return res.status(422).send('Malformed Parameters. Please try again')
     }
     console.log(`VOTE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
-    return redis.llen('topHundred').get(postId).execAsync()
+    return redis.llen('topHundred').execAsync()
+    .then((lengthResult) => {
+      topHundredLength = lengthResult[0];
+      return redis.get(postId).execAsync();
+    })
     .then((getResult) => {
-      topHundredLength = getResult[0];
-      const currentScore = getResult[1] == null ? '0,0' : getResult[1];
-      console.log(`LOG: Current Score of ${postId}: ${currentScore}`);
+      const currentScore = getResult[0] == null ? '0,0' : getResult[0];
       const newScore = generateNewScore(currentScore, score);
       // update upvote/downvote of a given post - might need LRU for this
       let redisTransactions = redis
