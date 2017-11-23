@@ -47,20 +47,14 @@ module.exports = (cdb, redis) => {
       console.log(`LOG: Current Score of ${postId}: ${currentScore}`);
       const newScore = generateNewScore(currentScore, score);
       // update upvote/downvote of a given post - might need LRU for this
-      return redis.set(postId, newScore).execAsync();
-    })
-    .then(() => {
+      let redisTransactions = redis
+        .set(postId, newScore)
+        .lpush('topHundred', `${postId},${score}`);
       // update recent 100 transactions
       if (topHundredLength === 100) {
-        return redis
-          .rpop('topHundred')
-          .lpush('topHundred', `${postId},${score}`)
-          .execAsync()
-          .then((val) => {
-            console.log(`POPPING ${val} FROM LIST`);
-          });
+        redisTransactions = redisTransactions.rpop('topHundred');
       }
-      return redis.lpush('topHundred', `${postId},${score}`).execAsync();
+      return redisTransactions.execAsync();
     })
     .then(() => {
       res.status(200).send({
