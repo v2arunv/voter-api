@@ -26,8 +26,8 @@ module.exports = (cdb, redis) => {
 
   const splitValue = (score) => {
     return [
-      score.substring(0, score.indexOf(',')),
-      score.substring(score.indexOf(',') + 1, score.length),
+      parseInt(score.substring(0, score.indexOf(',')), 10),
+      parseInt(score.substring(score.indexOf(',') + 1, score.length), 10),
     ];
   };
 
@@ -40,13 +40,11 @@ module.exports = (cdb, redis) => {
     if (score !== 1 && score !== -1) {
       return res.status(422).send('Invalid Score');
     }
-    return redis.llen('topHundred').execAsync()
-    .then((len) => {
-      topHundredLength = len[0];
-      return redis.get(postId).execAsync();
-    })
+    return redis.llen('topHundred').get(postId).execAsync()
     .then((getResult) => {
-      const currentScore = getResult[0] == null ? '0,0' : getResult[0];
+      topHundredLength = getResult[0];
+      const currentScore = getResult[1] == null ? '0,0' : getResult[1];
+      console.log(`LOG: Current Score of ${postId}: ${currentScore}`);
       const newScore = generateNewScore(currentScore, score);
       // update upvote/downvote of a given post - might need LRU for this
       return redis.set(postId, newScore).execAsync();
@@ -54,10 +52,13 @@ module.exports = (cdb, redis) => {
     .then(() => {
       // update recent 100 transactions
       if (topHundredLength === 100) {
-        return redis.rpop('topHundred').execAsync().then((val) => {
-          console.log(`POPPING ${val} FROM LIST`);
-          return redis.lpush('topHundred', `${postId},${score}`).execAsync();
-        });
+        return redis
+          .rpop('topHundred')
+          .lpush('topHundred', `${postId},${score}`)
+          .execAsync()
+          .then((val) => {
+            console.log(`POPPING ${val} FROM LIST`);
+          });
       }
       return redis.lpush('topHundred', `${postId},${score}`).execAsync();
     })
@@ -73,6 +74,10 @@ module.exports = (cdb, redis) => {
     })
     .then((dbResult) => {
       console.log(`DB UPDATE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
+    })
+    .catch((e) => {
+      console.log('ERROR:', e)
+      return res.status(500).send(e);
     });
   });
   
@@ -91,18 +96,22 @@ module.exports = (cdb, redis) => {
         });
       }
       //if redisk lookup is not a hit, query from database
-      const postiveVotesQuery = `SELECT sum(score) FROM dev.votes WHERE postId=${req.query.postId} and score=1 ALLOW FILTERING`;
-      const negativeVotesQuery = `SELECT sum(score) FROM dev.votes WHERE postId=${req.query.postId} and score=-1 ALLOW FILTERING`;
+      const postiveVotesQuery = `SELECT sum(score) FROM dev.votes WHERE postId=${postId} and score=1 ALLOW FILTERING`;
+      const negativeVotesQuery = `SELECT sum(score) FROM dev.votes WHERE postId=${postId} and score=-1 ALLOW FILTERING`;
       return Promise.all([
         cdb.execute(postiveVotesQuery, []),
         cdb.execute(negativeVotesQuery, [])
       ])
       .spread((up, down) => {
         console.log(`Endpoint called ${requestCounter++} times!`);
-        return res.status(200).send({
-          upvotes: up.rows[0]['system.sum(score)'],
-          downvotes: down.rows[0]['system.sum(score)'],
+        const upvotes = up.rows[0]['system.sum(score)'];
+        const downvotes = down.rows[0]['system.sum(score)'];
+        res.status(200).send({
+          upvotes,
+          downvotes,
         });
+        // Store this is redis again, since it was queried for once
+        return redis.set(post, `${upvotes},${downvotes}`).execAsync();
       });
     });
   });
