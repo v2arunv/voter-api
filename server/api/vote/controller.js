@@ -111,7 +111,7 @@ module.exports = (cdb, redis) => {
           downvotes,
         });
         // Store this is redis again, since it was queried for once
-        return redis.set(post, `${upvotes},${downvotes}`).execAsync();
+        return redis.set(postId, `${upvotes},${downvotes}`).execAsync();
       });
     });
   });
