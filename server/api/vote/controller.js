@@ -32,14 +32,20 @@ module.exports = (cdb, redis) => {
   };
 
   router.post('/vote', (req, res, next) => {
+    let topHundredLength;
     const score = parseInt(req.body.score, 10);
     const userId = req.body.userId;
     const postId = req.body.postId;
-    console.log(`VOTE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
-    let topHundredLength;
-    if (score !== 1 && score !== -1) {
-      return res.status(422).send('Invalid Score');
+    if (
+      postId == null || 
+      userId == null ||
+      score == null ||
+      (score !== 1 && score !== -1)
+    ) {
+      console.log(`INVALID REQUEST: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
+      return res.status(422).send('Malformed Parameters. Please try again')
     }
+    console.log(`VOTE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
     return redis.llen('topHundred').get(postId).execAsync()
     .then((getResult) => {
       topHundredLength = getResult[0];
