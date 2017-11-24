@@ -5,6 +5,14 @@ const Promise = require('bluebird');
 let requestCounter = 1;
 
 module.exports = (cdb, redis) => {
+  const throttledTrim = _.throttle(() => { 
+    return redis.ltrim('topHundred', 0, 100)
+    .execAsync()
+    .then(() => {
+      console.log('LOG: Transactions Trimmed');
+    });
+  }, 1000);
+
   const saveVoteToDB = (cdb, payload) => {
     const query = `INSERT INTO dev.votes (id, postId, userId, score, createdAt) values (now(), ${payload.postId},${payload.userId},${payload.score}, toTimestamp(now()))`;
     return cdb.execute(query, [])
@@ -51,14 +59,10 @@ module.exports = (cdb, redis) => {
       const currentScore = getResult[0] == null ? '0,0' : String(getResult[0]);
       const newScore = generateNewScore(currentScore, score);
       // update upvote/downvote of a given post - might need LRU for this
-      let redisTransactions = redis
+      return redis
         .set(postId, newScore)
-        .lpush('topHundred', `${postId},${score}`);
-      // update recent 100 transactions
-      if (topHundredLength === 100) {
-        redisTransactions = redisTransactions.rpop('topHundred');
-      }
-      return redisTransactions.execAsync();
+        .lpush('topHundred', `${postId},${score}`)
+        .execAsync();
     })
     .then(() => {
       res.status(200).send({
@@ -72,16 +76,11 @@ module.exports = (cdb, redis) => {
     })
     .then((dbResult) => {
       console.log(`DB UPDATE: [postId: ${postId}, userId: ${userId}, score: ${score}]`);
-      return _.throttle(() => { 
-        return redis.ltrim('topHundred', 0, 100)
-        .execAsync()
-        .then(() => {
-          console.log('LOG: Transactions Trimmed');
-        })
-      }, 1000);
+      return throttledTrim();
+      // TODO: Have another method called throttledSync() which syncs the DB with the Redis cache
     })
     .catch((e) => {
-      console.log('ERROR:', e)
+      console.log('ERROR:', e);
       return res.status(500).send(e);
     });
   });
