@@ -4,7 +4,7 @@ const Promise = require('bluebird');
 const app = express();
 const http = require('http');
 const cassandra = require('cassandra-driver');
-const redis = require('redis')
+const redis = require('redis');
 const bodyParser = require('body-parser');
 const config = require('./config');
 const seed = require('./services/seed');
@@ -39,13 +39,14 @@ cdb.connect((err) => {
     if (config.ENABLE_SEED) {
       return seed(cdb, redisClient)
       .then(() => {
-        return tryAnotherPort();
+        return process.exit();
       })
       .catch((err) => {
         console.log(err);
       });
+    } else {
+      return tryAnotherPort();
     }
-    return tryAnotherPort();
   }
   console.log(err);
 });

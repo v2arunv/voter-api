@@ -1,7 +1,7 @@
 const seedDB = (cdb) => {
   const dropQuery = `DROP KEYSPACE IF EXISTS dev`;
   const createKSQuery = `CREATE KEYSPACE dev WITH REPLICATION = {'class':'SimpleStrategy','replication_factor':1}`;
-  const createTableQuery = `CREATE TABLE dev.votes ( id timeuuid PRIMARY KEY, postId int, userId int, score double )`;
+  const createTableQuery = `CREATE TABLE dev.votes ( id timeuuid PRIMARY KEY, postId bigint, userId bigint, score bigint, createdAt timestamp )`;
   const createPostIDIndexQuery = 'CREATE INDEX post_index ON dev.votes (postId)';
   const createScoreIndexQuery = 'CREATE INDEX score_index ON dev.votes (score)';
   return cdb.execute(dropQuery, [])

@@ -6,7 +6,7 @@ let requestCounter = 1;
 
 module.exports = (cdb, redis) => {
   const saveVoteToDB = (cdb, payload) => {
-    const query = `INSERT INTO dev.votes (id, postId, userId, score) values (now(), ${payload.postId},${payload.userId},${payload.score})`;
+    const query = `INSERT INTO dev.votes (id, postId, userId, score, createdAt) values (now(), ${payload.postId},${payload.userId},${payload.score}, toTimestamp(now()))`;
     return cdb.execute(query, [])
     .then((result) => {
       return result;
