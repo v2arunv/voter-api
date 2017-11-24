@@ -61,6 +61,7 @@ module.exports = (cdb, redis) => {
       // update upvote/downvote of a given post - might need LRU for this
       return redis
         .set(postId, newScore)
+        .expire(postId, 10)
         .lpush('topHundred', `${postId},${score}`)
         .execAsync();
     })
